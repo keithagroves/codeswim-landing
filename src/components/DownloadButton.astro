@@ -1,0 +1,126 @@
+---
+const RELEASES = 'https://github.com/keithagroves/codeswim/releases/latest';
+---
+
+<div class="download" data-releases={RELEASES}>
+  <a class="primary" href={RELEASES} id="primary-download">
+    <span class="icon" id="primary-icon">↓</span>
+    <span class="label">
+      <span class="lead" id="primary-lead">Download codeswim</span>
+      <span class="sub" id="primary-sub">Pick your platform</span>
+    </span>
+  </a>
+  <div class="alt" id="alt-links">
+    <a href={RELEASES} data-os="mac">macOS</a>
+    <span class="dot">·</span>
+    <a href={RELEASES} data-os="win">Windows</a>
+    <span class="dot">·</span>
+    <a href={RELEASES} data-os="linux">Linux</a>
+  </div>
+</div>
+
+<script>
+  const root = document.querySelector<HTMLDivElement>('.download');
+  const lead = document.getElementById('primary-lead');
+  const sub = document.getElementById('primary-sub');
+  const alt = document.getElementById('alt-links');
+  if (root && lead && sub && alt) {
+    const ua = navigator.userAgent;
+    const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? '';
+    let os: 'mac' | 'win' | 'linux' | 'other' = 'other';
+    if (/Mac|iPhone|iPad|iPod/i.test(ua) || /mac/i.test(platform)) os = 'mac';
+    else if (/Win/i.test(ua) || /win/i.test(platform)) os = 'win';
+    else if (/Linux|X11/i.test(ua) || /linux/i.test(platform)) os = 'linux';
+
+    const labels: Record<typeof os, string> = {
+      mac: 'Get codeswim for Mac',
+      win: 'Get codeswim for PC',
+      linux: 'Get codeswim for Linux',
+      other: 'Download codeswim',
+    };
+    const subs: Record<typeof os, string> = {
+      mac: 'Apple silicon and Intel · .dmg',
+      win: 'Windows 10 and 11 · .exe installer',
+      linux: '.AppImage, .deb, .snap',
+      other: 'Pick your platform',
+    };
+    lead.textContent = labels[os];
+    sub.textContent = subs[os];
+
+    if (os !== 'other') {
+      alt.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
+        if (a.dataset.os === os) a.classList.add('current');
+      });
+    }
+  }
+</script>
+
+<style>
+  .download {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  .primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.1rem 2rem;
+    background: #111;
+    color: #fff;
+    border-radius: 14px;
+    text-decoration: none;
+    font-weight: 600;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 28px -12px rgba(0, 0, 0, 0.35);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+    border: 1px solid #222;
+  }
+  .primary:hover {
+    transform: translateY(-1px);
+    background: #1c1c1c;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 16px 32px -12px rgba(0, 0, 0, 0.45);
+  }
+  .icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    opacity: 0.85;
+  }
+  .label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.2;
+  }
+  .lead {
+    font-size: 1.05rem;
+  }
+  .sub {
+    font-size: 0.78rem;
+    opacity: 0.65;
+    font-weight: 400;
+    margin-top: 2px;
+  }
+  .alt {
+    font-size: 0.85rem;
+    color: #666;
+  }
+  .alt a {
+    color: #444;
+    text-decoration: none;
+    border-bottom: 1px dotted #bbb;
+  }
+  .alt a:hover {
+    color: #000;
+    border-bottom-color: #000;
+  }
+  .alt a.current {
+    color: #000;
+    font-weight: 500;
+    border-bottom-style: solid;
+  }
+  .alt .dot {
+    margin: 0 0.5rem;
+    color: #ccc;
+  }
+</style>

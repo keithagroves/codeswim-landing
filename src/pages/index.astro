@@ -1,0 +1,192 @@
+---
+import DownloadButton from '../components/DownloadButton.astro';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>codeswim — browse a codebase as diagrams</title>
+    <meta
+      name="description"
+      content="A desktop app that opens a folder and renders its markdown files as a navigable diagram tree. The diagrams are the spec; the code implements them."
+    />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <meta property="og:title" content="codeswim" />
+    <meta
+      property="og:description"
+      content="Browse a codebase as a hierarchy of mermaid diagrams."
+    />
+    <meta property="og:image" content="/codeswim-demo.gif" />
+    <meta property="og:type" content="website" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="/icon.png" alt="codeswim" class="logo" width="96" height="96" />
+        <h1>codeswim</h1>
+        <p class="tagline">
+          Browse a codebase as a hierarchy of mermaid diagrams.<br />
+          The diagrams are the spec; the code is what implements them.
+        </p>
+        <DownloadButton />
+        <p class="repo">
+          <a href="https://github.com/keithagroves/codeswim">View source on GitHub</a>
+        </p>
+      </header>
+
+      <section class="demo">
+        <img
+          src="/codeswim-demo.gif"
+          alt="codeswim demo — navigating a project as a tree of diagrams"
+          loading="lazy"
+        />
+      </section>
+
+      <section class="quote">
+        <blockquote>
+          “You can outsource your thinking, but you can't outsource your understanding.”
+        </blockquote>
+        <cite>— Andrej Karpathy</cite>
+      </section>
+
+      <section class="what">
+        <h2>What it is</h2>
+        <p>
+          codeswim is a desktop app that opens a folder and renders the markdown files
+          inside it as a navigable diagram tree. Click a node to drill into a child
+          diagram or open the source file it represents. An AI agent panel keeps the
+          diagrams aligned with the code as you change either side.
+        </p>
+        <p>
+          Point it at
+          <a href="https://github.com/keithagroves/codeswim-example">codeswim-example</a>
+          to see the format in practice — a small runnable demo project with an
+          <code>overview.md</code> at the root and a full diagram tree underneath.
+        </p>
+      </section>
+
+      <footer>
+        <p>
+          <a href="https://github.com/keithagroves/codeswim">codeswim</a>
+          · <a href="https://github.com/keithagroves/codeswim-vscode">vscode extension</a>
+          · <a href="https://github.com/keithagroves/codeswim-example">example repo</a>
+        </p>
+      </footer>
+    </main>
+
+    <style is:global>
+      :root {
+        --fg: #111;
+        --muted: #555;
+        --line: #e6e6e6;
+        --bg: #fafafa;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Helvetica, Arial,
+          sans-serif;
+        font-size: 17px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 6rem;
+      }
+      header {
+        text-align: center;
+        margin-bottom: 4rem;
+      }
+      .logo {
+        width: 96px;
+        height: 96px;
+        margin-bottom: 1rem;
+      }
+      h1 {
+        font-size: 2.25rem;
+        margin: 0 0 0.75rem;
+        letter-spacing: -0.02em;
+      }
+      .tagline {
+        color: var(--muted);
+        max-width: 520px;
+        margin: 0 auto 2rem;
+        font-size: 1.05rem;
+      }
+      .repo {
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+      }
+      .repo a {
+        color: var(--muted);
+      }
+      .demo {
+        margin: 0 0 4rem;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 24px 48px -28px rgba(0, 0, 0, 0.18);
+      }
+      .demo img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .quote {
+        text-align: center;
+        margin: 0 auto 4rem;
+        max-width: 560px;
+      }
+      .quote blockquote {
+        margin: 0 0 0.5rem;
+        font-style: italic;
+        color: var(--fg);
+        font-size: 1.1rem;
+      }
+      .quote cite {
+        color: var(--muted);
+        font-size: 0.9rem;
+        font-style: normal;
+      }
+      .what h2 {
+        font-size: 1.25rem;
+        margin: 0 0 0.75rem;
+      }
+      .what p {
+        color: var(--fg);
+      }
+      .what code {
+        background: #eee;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 0.92em;
+      }
+      a {
+        color: #111;
+      }
+      footer {
+        margin-top: 5rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--line);
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      footer a {
+        color: var(--muted);
+      }
+    </style>
+  </body>
+</html>
