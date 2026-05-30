@@ -59,23 +59,53 @@ const RELEASES = 'https://github.com/keithagroves/codeswim/releases/latest';
     }
 
     type Asset = { name: string; browser_download_url: string };
-    const matchers: Record<Exclude<OS, 'other'>, (n: string) => boolean> = {
+    type AssetKey = Exclude<OS, 'other'> | 'macArm64';
+    const matchers: Record<AssetKey, (n: string) => boolean> = {
       mac: (n) => n.endsWith('.dmg'),
+      macArm64: (n) => n.endsWith('-arm64-mac.zip'),
       win: (n) => n.endsWith('.exe') && !n.endsWith('.blockmap'),
       linux: (n) => n.endsWith('.AppImage'),
     };
+
+    // Chromium-only: returns 'arm' on Apple Silicon, 'x86' on Intel.
+    // Safari/Firefox don't expose this — fall back to .dmg in that case.
+    type UAD = { getHighEntropyValues?: (hints: string[]) => Promise<{ architecture?: string }> };
+    async function detectMacArm64(): Promise<boolean> {
+      const uad = (navigator as Navigator & { userAgentData?: UAD }).userAgentData;
+      if (!uad?.getHighEntropyValues) return false;
+      try {
+        const hints = await uad.getHighEntropyValues(['architecture']);
+        return hints.architecture === 'arm';
+      } catch {
+        return false;
+      }
+    }
 
     fetch('https://api.github.com/repos/keithagroves/codeswim/releases/latest', {
       headers: { Accept: 'application/vnd.github+json' },
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data: { assets: Asset[] }) => {
-        const urls: Partial<Record<OS, string>> = {};
-        for (const [key, match] of Object.entries(matchers) as [Exclude<OS, 'other'>, (n: string) => boolean][]) {
+      .then(async (data: { assets: Asset[] }) => {
+        const urls: Partial<Record<AssetKey, string>> = {};
+        for (const [key, match] of Object.entries(matchers) as [AssetKey, (n: string) => boolean][]) {
           const hit = data.assets.find((a) => match(a.name));
           if (hit) urls[key] = hit.browser_download_url;
         }
-        if (os !== 'other' && urls[os]) primary.href = urls[os]!;
+
+        let primaryUrl: string | undefined;
+        if (os === 'mac') {
+          const isArm64 = urls.macArm64 ? await detectMacArm64() : false;
+          if (isArm64) {
+            primaryUrl = urls.macArm64;
+            sub.textContent = 'Apple silicon · .zip';
+          } else {
+            primaryUrl = urls.mac;
+          }
+        } else if (os !== 'other') {
+          primaryUrl = urls[os];
+        }
+        if (primaryUrl) primary.href = primaryUrl;
+
         alt.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
           const key = a.dataset.os as Exclude<OS, 'other'> | undefined;
           if (key && urls[key]) a.href = urls[key]!;
