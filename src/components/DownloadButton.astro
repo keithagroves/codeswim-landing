@@ -20,25 +20,30 @@ const RELEASES = 'https://github.com/keithagroves/codeswim/releases/latest';
 </div>
 
 <script>
+  type OS = 'mac' | 'win' | 'linux' | 'other';
+
   const root = document.querySelector<HTMLDivElement>('.download');
+  const primary = document.getElementById('primary-download') as HTMLAnchorElement | null;
   const lead = document.getElementById('primary-lead');
   const sub = document.getElementById('primary-sub');
   const alt = document.getElementById('alt-links');
-  if (root && lead && sub && alt) {
+  if (!(root && primary && lead && sub && alt)) {
+    // bail silently — markup changed
+  } else {
     const ua = navigator.userAgent;
     const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? '';
-    let os: 'mac' | 'win' | 'linux' | 'other' = 'other';
+    let os: OS = 'other';
     if (/Mac|iPhone|iPad|iPod/i.test(ua) || /mac/i.test(platform)) os = 'mac';
     else if (/Win/i.test(ua) || /win/i.test(platform)) os = 'win';
     else if (/Linux|X11/i.test(ua) || /linux/i.test(platform)) os = 'linux';
 
-    const labels: Record<typeof os, string> = {
+    const labels: Record<OS, string> = {
       mac: 'Get codeswim for Mac',
       win: 'Get codeswim for PC',
       linux: 'Get codeswim for Linux',
       other: 'Download codeswim',
     };
-    const subs: Record<typeof os, string> = {
+    const subs: Record<OS, string> = {
       mac: 'Apple silicon and Intel · .dmg',
       win: 'Windows 10 and 11 · .exe installer',
       linux: '.AppImage, .deb, .snap',
@@ -52,6 +57,33 @@ const RELEASES = 'https://github.com/keithagroves/codeswim/releases/latest';
         if (a.dataset.os === os) a.classList.add('current');
       });
     }
+
+    type Asset = { name: string; browser_download_url: string };
+    const matchers: Record<Exclude<OS, 'other'>, (n: string) => boolean> = {
+      mac: (n) => n.endsWith('.dmg'),
+      win: (n) => n.endsWith('.exe') && !n.endsWith('.blockmap'),
+      linux: (n) => n.endsWith('.AppImage'),
+    };
+
+    fetch('https://api.github.com/repos/keithagroves/codeswim/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data: { assets: Asset[] }) => {
+        const urls: Partial<Record<OS, string>> = {};
+        for (const [key, match] of Object.entries(matchers) as [Exclude<OS, 'other'>, (n: string) => boolean][]) {
+          const hit = data.assets.find((a) => match(a.name));
+          if (hit) urls[key] = hit.browser_download_url;
+        }
+        if (os !== 'other' && urls[os]) primary.href = urls[os]!;
+        alt.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
+          const key = a.dataset.os as Exclude<OS, 'other'> | undefined;
+          if (key && urls[key]) a.href = urls[key]!;
+        });
+      })
+      .catch(() => {
+        // keep releases-page fallback already in markup
+      });
   }
 </script>
 
