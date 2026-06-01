@@ -20,6 +20,18 @@ import DownloadButton from '../components/DownloadButton.astro';
     />
     <meta property="og:image" content="/codeswim-demo.gif" />
     <meta property="og:type" content="website" />
+
+    <!-- Google tag (gtag.js) -->
+    <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-J224S3D6QV"></script>
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag('js', new Date());
+
+      gtag('config', 'G-J224S3D6QV');
+    </script>
   </head>
   <body>
     <main>
