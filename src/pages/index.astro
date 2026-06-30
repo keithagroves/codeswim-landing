@@ -316,10 +316,12 @@ import DownloadButton from '../components/DownloadButton.astro';
             j.y -= j.riseBase * (0.5 + c * 1.9) * j.scale;
             j.x += j.drift;
 
-            var jh = JELLY_BAR_H * j.scale;
-            // accordion: bars squeeze together (and overlap) when the bell contracts
-            var gapScale = 1.3 - c * 1.15;
-            var widthSqueeze = 1 - c * 0.16; // bell narrows slightly on contraction
+            // accordion drives the bell shape: contracting (c -> 1) pulls the rim in
+            // and stretches the bell TALL and NARROW (bullet) to jet upward; relaxing
+            // (c -> 0) flattens it back into a wide, shallow dome
+            var vStretch = 0.85 + c * 0.85; // taller bell when contracted
+            var widthSqueeze = 1 - c * 0.4; // narrower bell when contracted
+            var jh = JELLY_BAR_H * j.scale * vStretch;
             var ja = j.alpha;
             var nB = JELLY_WIDTHS.length;
 
@@ -334,13 +336,13 @@ import DownloadButton from '../components/DownloadButton.astro';
               hgrad.addColorStop(1, gs(jg, 0));
               ctx.fillStyle = hgrad;
               ctx.fillRect(jrx, cy, bw, jh);
-              cy += jh + JELLY_GAP * j.scale * gapScale;
+              cy += jh + JELLY_GAP * j.scale; // bars stay contiguous; the bell itself stretches
             }
 
             // tentacles trailing from the rim — thin vertical strands that sway and
-            // stretch longer as the bell relaxes
+            // stretch out longer as the bell contracts and surges upward
             var rimW = JELLY_WIDTHS[nB - 1] * j.scale * widthSqueeze;
-            var tentLen = (22 + (1 - c) * 26) * j.scale;
+            var tentLen = (22 + c * 28) * j.scale;
             var nT = 5;
             var tw = Math.max(1.6 * j.scale, 1);
             for (var ti = 0; ti < nT; ti++) {
