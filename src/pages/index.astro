@@ -109,19 +109,17 @@ import DownloadButton from '../components/DownloadButton.astro';
           f.grey = Math.round(10 + Math.random() * 22 + (1 - f.depth) * 95); // far = washed out lighter
           f.speed = (0.7 + f.depth * 1.9) * (0.85 + Math.random() * 0.3); // near = faster (parallax)
           var totalW = FISH_TOTAL_W * f.scale;
-          f.x = -totalW - Math.random() * 300;
+          // randomized off-screen gap before reappearing, so a fish is an occasional sight
+          f.x = -totalW - w * (0.5 + Math.random() * 1.8);
           f.y = h * 0.12 + Math.random() * h * 0.76;
           f.phase = Math.random() * Math.PI * 2;
         }
 
         function seedFish() {
           fishes = [];
-          for (var i = 0; i < 4; i++) {
-            var f = {};
-            resetFish(f);
-            f.x = -FISH_TOTAL_W - i * (w * 0.35); // stagger so they don't all enter together
-            fishes.push(f);
-          }
+          var f = {};
+          resetFish(f);
+          fishes.push(f);
         }
 
         // jellyfish: a domed bell of same-height, varying-width horizontal bars
