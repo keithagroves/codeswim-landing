@@ -34,9 +34,10 @@ import DownloadButton from '../components/DownloadButton.astro';
     </script>
   </head>
   <body>
+    <canvas id="sprinkle-bg"></canvas>
     <main>
       <header>
-        <img src="/icon.png" alt="codeswim" class="logo" width="96" height="96" />
+        <img src="/swim-only.png" alt="codeswim" class="logo" width="203" height="96" />
         <h1>codeswim</h1>
         <p class="tagline">
           Browse a codebase as a hierarchy of mermaid diagrams.<br />
@@ -82,6 +83,318 @@ import DownloadButton from '../components/DownloadButton.astro';
       </footer>
     </main>
 
+    <script is:inline>
+      (function () {
+        var canvas = document.getElementById('sprinkle-bg');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+        var dots = [];
+        var mouse = { x: -9999, y: -9999 };
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var w, h;
+
+        // fish silhouette: 10 same-width bars, short at the head, tall through
+        // the body, tapering to a thin tail stalk, then flaring at the tail end
+        var FISH_BAR_W = 14;
+        var FISH_GAP = 2;
+        var FISH_HEIGHTS = [18, 34, 48, 58, 60, 50, 38, 22, 12, 48];
+        var FISH_TOTAL_W = FISH_HEIGHTS.length * (FISH_BAR_W + FISH_GAP);
+        var fishes = [];
+
+        function resetFish(f) {
+          f.depth = Math.random() * 0.65; // 0 = far/faded, 1 = near — kept further back
+          f.scale = 0.5 + f.depth * 0.75; // far ones smaller
+          f.alpha = 0.1 + f.depth * 0.62; // far ones faded into the background
+          f.grey = Math.round(10 + Math.random() * 22 + (1 - f.depth) * 95); // far = washed out lighter
+          f.speed = (0.7 + f.depth * 1.9) * (0.85 + Math.random() * 0.3); // near = faster (parallax)
+          var totalW = FISH_TOTAL_W * f.scale;
+          f.x = -totalW - Math.random() * 300;
+          f.y = h * 0.12 + Math.random() * h * 0.76;
+          f.phase = Math.random() * Math.PI * 2;
+        }
+
+        function seedFish() {
+          fishes = [];
+          for (var i = 0; i < 4; i++) {
+            var f = {};
+            resetFish(f);
+            f.x = -FISH_TOTAL_W - i * (w * 0.35); // stagger so they don't all enter together
+            fishes.push(f);
+          }
+        }
+
+        // jellyfish: a domed bell of same-height, varying-width horizontal bars
+        // (apex narrow at top -> widest at the rim), driven by the accordion
+        var JELLY_BAR_H = 8;
+        var JELLY_GAP = 3;
+        var JELLY_WIDTHS = [16, 30, 44, 56, 62]; // top (apex) -> bottom (rim)
+        var jellies = [];
+
+        function resetJelly(j) {
+          j.depth = Math.random() * 0.55; // kept well back
+          j.scale = 0.5 + j.depth * 0.7;
+          j.alpha = 0.08 + j.depth * 0.46;
+          j.grey = Math.round(20 + Math.random() * 26 + (1 - j.depth) * 90);
+          j.x = Math.random() * w;
+          j.y = h + 120 * j.scale + Math.random() * h * 0.4; // start below, rises up
+          j.phase = Math.random() * Math.PI * 2;
+          j.pulseSpeed = 0.0018 + Math.random() * 0.0014;
+          j.riseBase = 0.18 + j.depth * 0.4;
+          j.drift = (Math.random() - 0.5) * 0.3;
+        }
+
+        function seedJelly() {
+          jellies = [];
+          for (var i = 0; i < 3; i++) {
+            var j = {};
+            resetJelly(j);
+            j.y = Math.random() * h; // already on screen at start
+            jellies.push(j);
+          }
+        }
+
+        function resize() {
+          w = window.innerWidth;
+          h = window.innerHeight;
+          canvas.width = w * dpr;
+          canvas.height = h * dpr;
+          canvas.style.width = w + 'px';
+          canvas.style.height = h + 'px';
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          seed();
+          seedFish();
+          seedJelly();
+        }
+
+        function seed() {
+          var count = 0; // dots disabled
+          dots = [];
+          for (var i = 0; i < count; i++) {
+            var x = Math.random() * w;
+            var y = Math.random() * h;
+            var bright = Math.random() < 0.12; // a handful of standout stars
+            dots.push({
+              x: x,
+              y: y,
+              ox: x,
+              oy: y,
+              r: bright ? Math.random() * 1.1 + 1.3 : Math.random() * 0.9 + 0.35,
+              shade: Math.random() * 0.55 + 0.15, // 0..1, mapped to grey
+              twinkle: Math.random() * Math.PI * 2,
+              speed: Math.random() * 0.0016 + 0.0006,
+              bright: bright,
+              driftPhase: Math.random() * Math.PI * 2,
+              driftSpeed: Math.random() * 0.0006 + 0.0002,
+              driftAmp: Math.random() * 14 + 6,
+              hue: 53 + Math.random() * 7, // pure yellow
+              satPhase: Math.random() * Math.PI * 2,
+              satSpeed: Math.random() * 0.0012 + 0.0004,
+            });
+          }
+        }
+
+        var radius = 130;
+        function gs(v, a) {
+          return 'rgba(' + v + ',' + v + ',' + v + ',' + a + ')';
+        }
+        function tick(t) {
+          ctx.clearRect(0, 0, w, h);
+          for (var i = 0; i < dots.length; i++) {
+            var d = dots[i];
+            // gentle ambient sway, like a particle suspended in water
+            var bx = d.ox + Math.sin(t * d.driftSpeed + d.driftPhase) * d.driftAmp;
+            var by = d.oy + Math.cos(t * d.driftSpeed * 0.8 + d.driftPhase) * d.driftAmp * 0.6;
+
+            var dx = bx - mouse.x;
+            var dy = by - mouse.y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            var tx = bx,
+              ty = by;
+            var glow = 0;
+            if (dist < radius) {
+              var force = (1 - dist / radius) * 22;
+              var ang = Math.atan2(dy, dx);
+              tx = bx + Math.cos(ang) * force;
+              ty = by + Math.sin(ang) * force;
+              glow = 1 - dist / radius;
+            }
+            d.x += (tx - d.x) * 0.06;
+            d.y += (ty - d.y) * 0.06;
+
+            var twinkleRange = d.bright ? 0.4 : 0.22;
+            var flicker = (Math.sin(t * d.speed + d.twinkle) + 1) * 0.5;
+            // soft flare: dots mostly sit dim, then a few brighten and swell
+            var satMix = (Math.sin(t * d.satSpeed + d.satPhase) + 1) * 0.5;
+            var lit = Math.pow(satMix, 3);
+            var light = Math.round(62 + lit * 6 + flicker * 6); // brightens when it flares
+            var color = 'hsla(0,0%,' + light + '%,'; // greyscale
+
+            // no hard core — every dot is a soft, blurry glow blob
+            var intensity =
+              (d.bright ? 0.18 : 0.09) + d.shade * 0.12 + flicker * twinkleRange * 0.7 + lit * 0.6 + glow * 0.3;
+            intensity = Math.min(intensity, 0.7);
+            var coreR = d.r + flicker * 0.5 + lit * 1.6 + glow * 1.5;
+            var blurR = coreR * (3.5 + lit * 4.5 + (d.bright ? 1.5 : 0));
+
+            var grad = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, blurR);
+            grad.addColorStop(0, color + intensity + ')');
+            grad.addColorStop(0.35, color + intensity * 0.4 + ')');
+            grad.addColorStop(1, color + '0)');
+            ctx.beginPath();
+            ctx.fillStyle = grad;
+            ctx.arc(d.x, d.y, blurR, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          for (var fi = 0; fi < fishes.length; fi++) {
+            var f = fishes[fi];
+            f.x += f.speed;
+            var barW = FISH_BAR_W * f.scale;
+            var gap = FISH_GAP * f.scale;
+            var totalW = FISH_TOTAL_W * f.scale;
+            if (f.x > w + totalW) resetFish(f);
+
+            // head (k=0) leads on the right and glides at constant speed; we
+            // accumulate spacing *backward* from the head toward the tail, so the
+            // foreshortening squeeze only fans the tail and never lurches the body
+            var nSeg = FISH_HEIGHTS.length - 1;
+            var cursorX = f.x + totalW; // head position
+            for (var k = 0; k <= nSeg; k++) {
+              // pos: 0 at head, 1 at tail. Front of the body stays nearly rigid;
+              // thrust comes from a wave that grows sharply only in the rear third.
+              var pos = k / nSeg;
+              var ampScale = Math.pow(pos, 2.6);
+              // traveling wave runs head -> tail (propulsive), ~one wavelength on the body
+              var angle = t * 0.006 + f.phase - pos * 5.0;
+              var wave = Math.sin(angle) * 9 * f.scale * ampScale;
+
+              if (k !== 0) {
+                // squeeze the rear segments together as they swing through their
+                // beat (foreshortened, like the tail fanning edge-on toward us)
+                var squeeze = ampScale * Math.abs(Math.sin(angle));
+                var baseSpacing = barW + gap;
+                var overlapSpacing = barW * 0.4;
+                cursorX -= baseSpacing + (overlapSpacing - baseSpacing) * squeeze;
+              }
+
+              var bh = FISH_HEIGHTS[k] * f.scale;
+              var rx = cursorX;
+              var ry = f.y + wave - bh / 2;
+              // silvery, translucent, countershaded body: dark back up top, a bright
+              // specular "flash" band along the midline, paler belly below — all grey.
+              // f.alpha fades the whole fish back according to its depth.
+              var dark = f.grey; // dorsal (back)
+              var shine = 232; // silvery midline highlight
+              var belly = 168; // paler underside
+              var a = f.alpha;
+              var grad = ctx.createLinearGradient(rx, ry, rx, ry + bh);
+              grad.addColorStop(0.0, gs(dark, 0.0)); // translucent dorsal edge
+              grad.addColorStop(0.12, gs(dark, 0.62 * a)); // dark back
+              grad.addColorStop(0.34, gs(shine, 0.8 * a)); // silver flash
+              grad.addColorStop(0.52, gs(belly + 30, 0.55 * a));
+              grad.addColorStop(0.82, gs(belly, 0.42 * a)); // pale belly
+              grad.addColorStop(1.0, gs(belly, 0.0)); // translucent belly edge
+              ctx.fillStyle = grad;
+              ctx.fillRect(rx, ry, barW, bh);
+
+              // eye, just behind the snout
+              if (k === 0) {
+                var eyeX = rx + barW * 0.45;
+                var eyeY = f.y + wave - bh * 0.12;
+                ctx.beginPath();
+                ctx.fillStyle = 'rgba(250,250,250,' + 0.9 * a + ')';
+                ctx.arc(eyeX, eyeY, 1.8 * f.scale, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+          }
+
+          for (var ji = 0; ji < jellies.length; ji++) {
+            var j = jellies[ji];
+            // pulse: 0 = relaxed/open bell, 1 = contracted/squeezed bell
+            var pulse = (Math.sin(t * j.pulseSpeed + j.phase) + 1) * 0.5;
+            var c = Math.pow(pulse, 1.6); // contraction is quicker than relaxation
+            // jet propulsion: rises faster while contracting
+            j.y -= j.riseBase * (0.5 + c * 1.9) * j.scale;
+            j.x += j.drift;
+
+            var jh = JELLY_BAR_H * j.scale;
+            // accordion: bars squeeze together (and overlap) when the bell contracts
+            var gapScale = 1.3 - c * 1.15;
+            var widthSqueeze = 1 - c * 0.16; // bell narrows slightly on contraction
+            var ja = j.alpha;
+            var nB = JELLY_WIDTHS.length;
+
+            var cy = j.y; // apex (top of bell)
+            for (var b = 0; b < nB; b++) {
+              var bw = JELLY_WIDTHS[b] * j.scale * widthSqueeze;
+              var jrx = j.x - bw / 2;
+              var jg = j.grey + (nB - 1 - b) * 8; // dome highlight toward the top
+              var hgrad = ctx.createLinearGradient(jrx, 0, jrx + bw, 0);
+              hgrad.addColorStop(0, gs(jg, 0));
+              hgrad.addColorStop(0.5, gs(jg, 0.55 * ja));
+              hgrad.addColorStop(1, gs(jg, 0));
+              ctx.fillStyle = hgrad;
+              ctx.fillRect(jrx, cy, bw, jh);
+              cy += jh + JELLY_GAP * j.scale * gapScale;
+            }
+
+            // tentacles trailing from the rim — thin vertical strands that sway and
+            // stretch longer as the bell relaxes
+            var rimW = JELLY_WIDTHS[nB - 1] * j.scale * widthSqueeze;
+            var tentLen = (22 + (1 - c) * 26) * j.scale;
+            var nT = 5;
+            var tw = Math.max(1.6 * j.scale, 1);
+            for (var ti = 0; ti < nT; ti++) {
+              var frac = ti / (nT - 1) - 0.5; // -0.5 .. 0.5 across the rim
+              var sway = Math.sin(t * 0.003 + j.phase + ti * 0.9) * 5 * j.scale;
+              var tx = j.x + frac * rimW * 0.7 + sway;
+              var tgrad = ctx.createLinearGradient(0, cy, 0, cy + tentLen);
+              tgrad.addColorStop(0, gs(j.grey, 0.4 * ja));
+              tgrad.addColorStop(1, gs(j.grey, 0));
+              ctx.fillStyle = tgrad;
+              ctx.fillRect(tx - tw / 2, cy, tw, tentLen);
+            }
+
+            if (cy + tentLen < 0) resetJelly(j); // fully risen past the top
+          }
+
+          if (running) requestAnimationFrame(tick);
+        }
+
+        window.addEventListener('mousemove', function (e) {
+          mouse.x = e.clientX;
+          mouse.y = e.clientY;
+        });
+        window.addEventListener('mouseleave', function () {
+          mouse.x = -9999;
+          mouse.y = -9999;
+        });
+        window.addEventListener('resize', resize);
+
+        // honor the user's reduced-motion preference, and react if they change it
+        var running = false;
+        function applyMotionPreference() {
+          if (motionQuery.matches) {
+            running = false;
+            ctx.clearRect(0, 0, w, h); // leave the canvas blank, no animation
+          } else if (!running) {
+            running = true;
+            requestAnimationFrame(tick);
+          }
+        }
+        if (motionQuery.addEventListener) {
+          motionQuery.addEventListener('change', applyMotionPreference);
+        } else if (motionQuery.addListener) {
+          motionQuery.addListener(applyMotionPreference); // older Safari
+        }
+
+        resize();
+        applyMotionPreference();
+      })();
+    </script>
+
     <style is:global>
       :root {
         --fg: #111;
@@ -91,6 +404,18 @@ import DownloadButton from '../components/DownloadButton.astro';
       }
       * {
         box-sizing: border-box;
+      }
+      #sprinkle-bg {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+      }
+      main {
+        position: relative;
+        z-index: 1;
       }
       html,
       body {
@@ -115,7 +440,7 @@ import DownloadButton from '../components/DownloadButton.astro';
         margin-bottom: 4rem;
       }
       .logo {
-        width: 96px;
+        width: 203px;
         height: 96px;
         margin-bottom: 1rem;
       }
