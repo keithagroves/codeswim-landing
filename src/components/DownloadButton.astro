@@ -1,8 +1,38 @@
 ---
-const RELEASES = 'https://github.com/keithagroves/codeswim/releases/latest';
+const REPO = 'keithagroves/codeswim';
+const RELEASES = `https://github.com/${REPO}/releases/latest`;
+
+// Bake direct asset URLs in at build time so the static markup already
+// points at real downloads (no-JS visitors, API rate limits). The codeswim
+// repo re-triggers this deploy whenever a release is published, so a fresh
+// build always sees the newest assets. The client script below still
+// refreshes at runtime as a belt-and-braces.
+type Asset = { name: string; browser_download_url: string };
+const baked: Record<'mac' | 'win' | 'linux', string> = {
+  mac: RELEASES,
+  win: RELEASES,
+  linux: RELEASES,
+};
+let version = '';
+try {
+  const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  if (res.ok) {
+    const data = (await res.json()) as { tag_name?: string; assets?: Asset[] };
+    version = data.tag_name ?? '';
+    const find = (match: (n: string) => boolean) =>
+      data.assets?.find((a) => match(a.name))?.browser_download_url;
+    baked.mac = find((n) => n.endsWith('.dmg')) ?? RELEASES;
+    baked.win = find((n) => n.endsWith('.exe') && !n.endsWith('.blockmap')) ?? RELEASES;
+    baked.linux = find((n) => n.endsWith('.AppImage')) ?? RELEASES;
+  }
+} catch {
+  // offline build — keep releases-page fallback
+}
 ---
 
-<div class="download" data-releases={RELEASES}>
+<div class="download" data-releases={RELEASES} data-version={version}>
   <a class="primary" href={RELEASES} id="primary-download">
     <span class="icon" id="primary-icon">↓</span>
     <span class="label">
@@ -11,11 +41,11 @@ const RELEASES = 'https://github.com/keithagroves/codeswim/releases/latest';
     </span>
   </a>
   <div class="alt" id="alt-links">
-    <a href={RELEASES} data-os="mac">macOS</a>
+    <a href={baked.mac} data-os="mac">macOS</a>
     <span class="dot">·</span>
-    <a href={RELEASES} data-os="win">Windows</a>
+    <a href={baked.win} data-os="win">Windows</a>
     <span class="dot">·</span>
-    <a href={RELEASES} data-os="linux">Linux</a>
+    <a href={baked.linux} data-os="linux">Linux</a>
   </div>
 </div>
 
@@ -43,14 +73,15 @@ const RELEASES = 'https://github.com/keithagroves/codeswim/releases/latest';
       linux: 'Get codeswim for Linux',
       other: 'Download codeswim',
     };
+    const version = root.dataset.version;
     const subs: Record<OS, string> = {
-      mac: 'Apple silicon and Intel · .dmg',
+      mac: 'Apple silicon · .dmg',
       win: 'Windows 10 and 11 · .exe installer',
-      linux: '.AppImage, .deb, .snap',
+      linux: '.AppImage, .deb',
       other: 'Pick your platform',
     };
     lead.textContent = labels[os];
-    sub.textContent = subs[os];
+    sub.textContent = os !== 'other' && version ? `${subs[os]} · ${version}` : subs[os];
 
     if (os !== 'other') {
       alt.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
@@ -58,61 +89,46 @@ const RELEASES = 'https://github.com/keithagroves/codeswim/releases/latest';
       });
     }
 
+    // The baked hrefs point at build-time assets; a runtime refresh keeps
+    // the links current even if the page was built before the latest release.
     type Asset = { name: string; browser_download_url: string };
-    type AssetKey = Exclude<OS, 'other'> | 'macArm64';
+    type AssetKey = Exclude<OS, 'other'>;
     const matchers: Record<AssetKey, (n: string) => boolean> = {
       mac: (n) => n.endsWith('.dmg'),
-      macArm64: (n) => n.endsWith('-arm64-mac.zip'),
       win: (n) => n.endsWith('.exe') && !n.endsWith('.blockmap'),
       linux: (n) => n.endsWith('.AppImage'),
     };
 
-    // Chromium-only: returns 'arm' on Apple Silicon, 'x86' on Intel.
-    // Safari/Firefox don't expose this — fall back to .dmg in that case.
-    type UAD = { getHighEntropyValues?: (hints: string[]) => Promise<{ architecture?: string }> };
-    async function detectMacArm64(): Promise<boolean> {
-      const uad = (navigator as Navigator & { userAgentData?: UAD }).userAgentData;
-      if (!uad?.getHighEntropyValues) return false;
-      try {
-        const hints = await uad.getHighEntropyValues(['architecture']);
-        return hints.architecture === 'arm';
-      } catch {
-        return false;
-      }
+    // Point the primary button at the visitor's platform using the baked
+    // link right away; the fetch below only swaps in fresher URLs.
+    if (os !== 'other') {
+      const bakedLink = alt.querySelector<HTMLAnchorElement>(`a[data-os="${os}"]`);
+      if (bakedLink) primary.href = bakedLink.href;
     }
 
     fetch('https://api.github.com/repos/keithagroves/codeswim/releases/latest', {
       headers: { Accept: 'application/vnd.github+json' },
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then(async (data: { assets: Asset[] }) => {
+      .then((data: { assets: Asset[]; tag_name?: string }) => {
         const urls: Partial<Record<AssetKey, string>> = {};
         for (const [key, match] of Object.entries(matchers) as [AssetKey, (n: string) => boolean][]) {
           const hit = data.assets.find((a) => match(a.name));
           if (hit) urls[key] = hit.browser_download_url;
         }
 
-        let primaryUrl: string | undefined;
-        if (os === 'mac') {
-          const isArm64 = urls.macArm64 ? await detectMacArm64() : false;
-          if (isArm64) {
-            primaryUrl = urls.macArm64;
-            sub.textContent = 'Apple silicon · .zip';
-          } else {
-            primaryUrl = urls.mac;
-          }
-        } else if (os !== 'other') {
-          primaryUrl = urls[os];
+        if (os !== 'other') {
+          if (urls[os]) primary.href = urls[os]!;
+          if (data.tag_name) sub.textContent = `${subs[os]} · ${data.tag_name}`;
         }
-        if (primaryUrl) primary.href = primaryUrl;
 
         alt.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
-          const key = a.dataset.os as Exclude<OS, 'other'> | undefined;
+          const key = a.dataset.os as AssetKey | undefined;
           if (key && urls[key]) a.href = urls[key]!;
         });
       })
       .catch(() => {
-        // keep releases-page fallback already in markup
+        // keep baked links already in markup
       });
   }
 </script>

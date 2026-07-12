@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Fired by the codeswim repo when a release is published, so the baked
+  # download links pick up the new assets.
+  repository_dispatch:
+    types: [codeswim-release]
 
 permissions:
   contents: read
