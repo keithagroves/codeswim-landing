@@ -2,17 +2,12 @@
 const REPO = 'keithagroves/codeswim';
 const RELEASES = `https://github.com/${REPO}/releases/latest`;
 
-// Bake direct asset URLs in at build time so the static markup already
-// points at real downloads (no-JS visitors, API rate limits). The codeswim
-// repo re-triggers this deploy whenever a release is published, so a fresh
-// build always sees the newest assets. The client script below still
-// refreshes at runtime as a belt-and-braces.
+// Bake the direct .dmg URL in at build time so the static markup already points
+// at a real download (no-JS visitors, API rate limits). The codeswim repo
+// re-triggers this deploy whenever a release is published, so a fresh build
+// always sees the newest asset. The client script below refreshes at runtime.
 type Asset = { name: string; browser_download_url: string };
-const baked: Record<'mac' | 'win' | 'linux', string> = {
-  mac: RELEASES,
-  win: RELEASES,
-  linux: RELEASES,
-};
+let macUrl = RELEASES;
 let version = '';
 try {
   const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
@@ -21,11 +16,7 @@ try {
   if (res.ok) {
     const data = (await res.json()) as { tag_name?: string; assets?: Asset[] };
     version = data.tag_name ?? '';
-    const find = (match: (n: string) => boolean) =>
-      data.assets?.find((a) => match(a.name))?.browser_download_url;
-    baked.mac = find((n) => n.endsWith('.dmg')) ?? RELEASES;
-    baked.win = find((n) => n.endsWith('.exe') && !n.endsWith('.blockmap')) ?? RELEASES;
-    baked.linux = find((n) => n.endsWith('.AppImage')) ?? RELEASES;
+    macUrl = data.assets?.find((a) => a.name.endsWith('.dmg'))?.browser_download_url ?? RELEASES;
   }
 } catch {
   // offline build — keep releases-page fallback
@@ -33,102 +24,37 @@ try {
 ---
 
 <div class="download" data-releases={RELEASES} data-version={version}>
-  <a class="primary" href={RELEASES} id="primary-download">
+  <a class="primary" href={macUrl} id="primary-download">
     <span class="icon" id="primary-icon">↓</span>
     <span class="label">
-      <span class="lead" id="primary-lead">Download codeswim</span>
-      <span class="sub" id="primary-sub">Pick your platform</span>
+      <span class="lead">Download for Mac</span>
+      <span class="sub" id="primary-sub">Apple silicon · .dmg{version ? ` · ${version}` : ''}</span>
     </span>
   </a>
-  <div class="alt" id="alt-links">
-    <a href={baked.mac} data-os="mac">macOS</a>
-    <span class="dot">·</span>
-    <a href={baked.win} data-os="win">Windows</a>
-    <span class="dot">·</span>
-    <a href={baked.linux} data-os="linux">Linux</a>
-  </div>
+  <p class="note"><a href={RELEASES}>Other platforms</a></p>
 </div>
 
 <script>
-  type OS = 'mac' | 'win' | 'linux' | 'other';
+  // Mac-only: refresh the .dmg link and version at runtime in case the page was
+  // built before the latest release.
+  type Asset = { name: string; browser_download_url: string };
 
   const root = document.querySelector<HTMLDivElement>('.download');
   const primary = document.getElementById('primary-download') as HTMLAnchorElement | null;
-  const lead = document.getElementById('primary-lead');
   const sub = document.getElementById('primary-sub');
-  const alt = document.getElementById('alt-links');
-  if (!(root && primary && lead && sub && alt)) {
-    // bail silently — markup changed
-  } else {
-    const ua = navigator.userAgent;
-    const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? '';
-    let os: OS = 'other';
-    if (/Mac|iPhone|iPad|iPod/i.test(ua) || /mac/i.test(platform)) os = 'mac';
-    else if (/Win/i.test(ua) || /win/i.test(platform)) os = 'win';
-    else if (/Linux|X11/i.test(ua) || /linux/i.test(platform)) os = 'linux';
-
-    const labels: Record<OS, string> = {
-      mac: 'Get codeswim for Mac',
-      win: 'Get codeswim for PC',
-      linux: 'Get codeswim for Linux',
-      other: 'Download codeswim',
-    };
-    const version = root.dataset.version;
-    const subs: Record<OS, string> = {
-      mac: 'Apple silicon · .dmg',
-      win: 'Windows 10 and 11 · .exe installer',
-      linux: '.AppImage, .deb',
-      other: 'Pick your platform',
-    };
-    lead.textContent = labels[os];
-    sub.textContent = os !== 'other' && version ? `${subs[os]} · ${version}` : subs[os];
-
-    if (os !== 'other') {
-      alt.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
-        if (a.dataset.os === os) a.classList.add('current');
-      });
-    }
-
-    // The baked hrefs point at build-time assets; a runtime refresh keeps
-    // the links current even if the page was built before the latest release.
-    type Asset = { name: string; browser_download_url: string };
-    type AssetKey = Exclude<OS, 'other'>;
-    const matchers: Record<AssetKey, (n: string) => boolean> = {
-      mac: (n) => n.endsWith('.dmg'),
-      win: (n) => n.endsWith('.exe') && !n.endsWith('.blockmap'),
-      linux: (n) => n.endsWith('.AppImage'),
-    };
-
-    // Point the primary button at the visitor's platform using the baked
-    // link right away; the fetch below only swaps in fresher URLs.
-    if (os !== 'other') {
-      const bakedLink = alt.querySelector<HTMLAnchorElement>(`a[data-os="${os}"]`);
-      if (bakedLink) primary.href = bakedLink.href;
-    }
-
+  if (root && primary && sub) {
     fetch('https://api.github.com/repos/keithagroves/codeswim/releases/latest', {
       headers: { Accept: 'application/vnd.github+json' },
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: { assets: Asset[]; tag_name?: string }) => {
-        const urls: Partial<Record<AssetKey, string>> = {};
-        for (const [key, match] of Object.entries(matchers) as [AssetKey, (n: string) => boolean][]) {
-          const hit = data.assets.find((a) => match(a.name));
-          if (hit) urls[key] = hit.browser_download_url;
-        }
-
-        if (os !== 'other') {
-          if (urls[os]) primary.href = urls[os]!;
-          if (data.tag_name) sub.textContent = `${subs[os]} · ${data.tag_name}`;
-        }
-
-        alt.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
-          const key = a.dataset.os as AssetKey | undefined;
-          if (key && urls[key]) a.href = urls[key]!;
-        });
+        const hit = data.assets.find((a) => a.name.endsWith('.dmg'));
+        if (hit) primary.href = hit.browser_download_url;
+        const v = data.tag_name ?? root.dataset.version;
+        sub.textContent = v ? `Apple silicon · .dmg · ${v}` : 'Apple silicon · .dmg';
       })
       .catch(() => {
-        // keep baked links already in markup
+        // keep the baked link already in the markup
       });
   }
 </script>
@@ -179,26 +105,18 @@ try {
     font-weight: 400;
     margin-top: 2px;
   }
-  .alt {
-    font-size: 0.85rem;
-    color: #666;
+  .note {
+    font-size: 0.82rem;
+    color: #888;
+    margin: 0;
   }
-  .alt a {
-    color: #444;
+  .note a {
+    color: #888;
     text-decoration: none;
-    border-bottom: 1px dotted #bbb;
+    border-bottom: 1px dotted #ccc;
   }
-  .alt a:hover {
-    color: #000;
-    border-bottom-color: #000;
-  }
-  .alt a.current {
-    color: #000;
-    font-weight: 500;
-    border-bottom-style: solid;
-  }
-  .alt .dot {
-    margin: 0 0.5rem;
-    color: #ccc;
+  .note a:hover {
+    color: #333;
+    border-bottom-color: #333;
   }
 </style>
