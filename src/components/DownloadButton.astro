@@ -31,7 +31,7 @@ try {
       <span class="sub" id="primary-sub">Apple silicon · .dmg{version ? ` · ${version}` : ''}</span>
     </span>
   </a>
-  <p class="note"><a href={RELEASES}>Other platforms</a></p>
+  <p class="note"><a href={RELEASES} id="other-platforms">Other platforms</a></p>
 </div>
 
 <script>
@@ -42,6 +42,20 @@ try {
   const root = document.querySelector<HTMLDivElement>('.download');
   const primary = document.getElementById('primary-download') as HTMLAnchorElement | null;
   const sub = document.getElementById('primary-sub');
+  const other = document.getElementById('other-platforms') as HTMLAnchorElement | null;
+
+  // Report clicks to Google Analytics so downloads show up as events, not just
+  // page views. gtag is defined globally on the page.
+  type Gtag = (...args: unknown[]) => void;
+  const track = (label: string, href: string) => {
+    const gtag = (window as unknown as { gtag?: Gtag }).gtag;
+    if (typeof gtag === 'function') {
+      gtag('event', 'download_click', { platform: label, link_url: href });
+    }
+  };
+  primary?.addEventListener('click', () => track('mac', primary.href));
+  other?.addEventListener('click', () => track('other', other.href));
+
   if (root && primary && sub) {
     fetch('https://api.github.com/repos/keithagroves/codeswim/releases/latest', {
       headers: { Accept: 'application/vnd.github+json' },
